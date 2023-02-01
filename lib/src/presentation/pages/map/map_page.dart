@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
 
+import '../../../models/coordinates/index.dart';
+
 class MapPage extends StatefulWidget {
   @override
   State<MapPage> createState() => _MapPageState();
@@ -14,6 +16,8 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
   late GlobalKey<ScaffoldState> scaffoldKey;
 
   Key mapGlobalKey = UniqueKey();
+
+  double angleCamera = 0.0;
 
   ValueNotifier<bool> zoomNotifierActivation = ValueNotifier(false);
   ValueNotifier<bool> visibilityZoomNotifierActivation = ValueNotifier(false);
@@ -30,7 +34,7 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
 
   List<GeoPoint> coordinates = <GeoPoint>[
     GeoPoint(latitude: 47.62922, longitude: 26.21904),
-    GeoPoint(latitude: 47.63413, longitude: 26.23566),
+    GeoPoint(latitude: 47.63359, longitude: 26.23148),
     GeoPoint(latitude: 47.64188, longitude: 26.23513),
     GeoPoint(latitude: 47.64676, longitude: 26.24713),
     GeoPoint(latitude: 47.64488, longitude: 26.26292),
@@ -50,75 +54,6 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     );
     controller.addObserver(this);
     scaffoldKey = GlobalKey<ScaffoldState>();
-    // controller.listenerMapLongTapping.addListener(() async {
-    //   if (controller.listenerMapLongTapping.value != null) {
-    //     if (kDebugMode) {
-    //       print('1: ${controller.listenerMapLongTapping.value}');
-    //     }
-    //     final String randNum = Random.secure().nextInt(100).toString();
-    //     if (kDebugMode) {
-    //       print(randNum);
-    //     }
-    //     await controller.addMarker(
-    //       controller.listenerMapLongTapping.value!,
-    //       markerIcon: MarkerIcon(
-    //         iconWidget: SizedBox.fromSize(
-    //           size: const Size.square(48),
-    //           child: Stack(
-    //             children: <Widget>[
-    //               const Icon(
-    //                 Icons.store,
-    //                 color: Colors.brown,
-    //                 size: 48,
-    //               ),
-    //               Text(
-    //                 randNum,
-    //                 style: const TextStyle(fontSize: 18),
-    //               ),
-    //             ],
-    //           ),
-    //         ),
-    //       ),
-    //       //angle: pi / 3,
-    //     );
-    //   }
-    // });
-    // controller.listenerMapSingleTapping.addListener(() async {
-    //   if (controller.listenerMapSingleTapping.value != null) {
-    //     if (kDebugMode) {
-    //       print(controller.listenerMapSingleTapping.value);
-    //     }
-    //
-    //     if (lastGeoPoint.value != null) {
-    //       controller.changeLocationMarker(
-    //         oldLocation: lastGeoPoint.value!,
-    //         newLocation: controller.listenerMapSingleTapping.value!,
-    //       );
-    //     } else {
-    //       await controller.addMarker(
-    //         controller.listenerMapSingleTapping.value!,
-    //         markerIcon: const MarkerIcon(
-    //           icon: Icon(
-    //             Icons.person_pin,
-    //             color: Colors.red,
-    //             size: 32,
-    //           ),
-    //         ),
-    //         //angle: -pi / 4,
-    //       );
-    //     }
-    //
-    //     lastGeoPoint.value = controller.listenerMapSingleTapping.value;
-    //   }
-    // });
-    // controller.listenerRegionIsChanging.addListener(() async {
-    //   if (controller.listenerRegionIsChanging.value != null) {
-    //     if (kDebugMode) {
-    //       print(controller.listenerRegionIsChanging.value);
-    //     }
-    //     centerMap.value = controller.listenerRegionIsChanging.value!.center;
-    //   }
-    // });
   }
 
   Future<void> mapIsInitialized() async {
@@ -128,10 +63,6 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     if (kDebugMode) {
       print('2: $bounds');
     }
-
-    // Future<void>.delayed(const Duration(seconds: 5), () {
-    //   controller.changeTileLayer(tileLayer: CustomTile.cycleOSM());
-    // });
   }
 
   @override
@@ -139,6 +70,7 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     if (!isReady) {
       return;
     }
+
     await mapIsInitialized();
     addMultiRoadConfiguration();
   }
@@ -151,9 +83,38 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     super.dispose();
   }
 
+  List<GeoPoint> setCoordinates(List<GeoPointModel> list) {
+    List<GeoPoint> tmpList = <GeoPoint>[];
+
+    for (final GeoPointModel item in list) {
+      tmpList.add(GeoPoint(latitude: item.latitude, longitude: item.longitude));
+    }
+
+    return tmpList;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: ValueListenableBuilder<bool>(
+        valueListenable: showFab,
+        builder: (ctx, isShow, child) {
+          if (!isShow) {
+            return SizedBox.shrink();
+          }
+          return child!;
+        },
+        child: FloatingActionButton(
+          onPressed: () {
+            controller.rotateMapCamera(angleCamera);
+            angleCamera += 20;
+          },
+          child: const Icon(
+            Icons.piano,
+            color: Colors.white,
+          ),
+        ),
+      ),
       key: scaffoldKey,
       resizeToAvoidBottomInset: false,
       body: Stack(
@@ -162,16 +123,6 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
             controller: controller,
             trackMyPosition: true,
             androidHotReloadSupport: true,
-            mapIsLoading: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const <Widget>[
-                  CircularProgressIndicator(),
-                  Text('Map is Loading..'),
-                ],
-              ),
-            ),
             onMapIsReady: (bool isReady) {
               if (isReady && isConstraintRoads) {
                 if (kDebugMode) {
@@ -192,19 +143,42 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
               ),
               directionArrowMarker: MarkerIcon(
                 assetMarker: AssetMarker(
-                    image: const AssetImage(
-                      'asset/taxi.png',
-                    ),
-                    scaleAssetImage: 0.45),
+                  image: const AssetImage(
+                    'asset/taxi.png',
+                  ),
+                  scaleAssetImage: 0.45,
+                ),
               ),
             ),
-            showContributorBadgeForOSM: true,
             onLocationChanged: (GeoPoint myLocation) {
               if (kDebugMode) {
                 print('3: $myLocation');
               }
             },
           ),
+          if (!isConstraintRoads)
+            Center(
+              child: Container(
+                width: MediaQuery.of(context).size.width / 1.2,
+                padding: const EdgeInsets.all(20.0),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30.0),
+                  color: Colors.white.withOpacity(0.5),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const <Widget>[
+                    CircularProgressIndicator(),
+                    SizedBox(height: 30),
+                    Text(
+                      'Loading your current location and building a road ...',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -215,29 +189,55 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
       controller.addMarker(
         coordinates[i],
         markerIcon: MarkerIcon(
-          iconWidget: Icon(
-            Icons.person_pin,
-            size: 50,
-            color: Colors.blue,
+          iconWidget: Stack(
+            children: const <Widget>[
+               Icon(
+                Icons.location_on,
+                size: 50,
+                color: Colors.red,
+              ),
+              // Container(
+              //   width: 30,
+              //   height: 30,
+              //   decoration: const BoxDecoration(
+              //     shape: BoxShape.circle,
+              //     color: Colors.green,
+              //   ),
+              //   child: Center(
+              //     child: Text(
+              //       '${i + 1}',
+              //       style: const TextStyle(
+              //         color: Colors.white,
+              //         fontSize: 22,
+              //       ),
+              //     ),
+              //   ),
+              // )
+            ],
           ),
         ),
       );
     }
   }
 
-  void addMultiRoadConfiguration() async {
-    await controller.myLocation().then((value) {
+  Future<void> addMultiRoadConfiguration() async {
+    await controller.myLocation().then((GeoPoint value) {
+      isConstraintRoads = true;
       print('Current location: $value');
       coordinates.insert(0, value);
-      addMarkers();
-      setState(() {
-        isConstraintRoads = true;
-      });
 
       List<MultiRoadConfiguration> configs = [];
       for (int i = 0; i < coordinates.length; i++) {
         if (coordinates.length > i + 1) {
-          configs.add(MultiRoadConfiguration(startPoint: coordinates[i], destinationPoint: coordinates[i + 1]));
+          configs.add(
+            MultiRoadConfiguration(
+              startPoint: coordinates[i],
+              destinationPoint: coordinates[i + 1],
+              roadOptionConfiguration: const MultiRoadOption(
+                roadColor: Colors.blue,
+              ),
+            ),
+          );
         } else {
           drawMultiRoads(configs);
         }
@@ -253,9 +253,11 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
         roadColor: Colors.redAccent,
       ),
     )
-        .whenComplete(() => addMarkers());
+        .whenComplete(() {
+      addMarkers();
+      setState(() {});
+    });
 
-    setState(() {});
     if (kDebugMode) {
       print(listRoadInfo);
     }
