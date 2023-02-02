@@ -28,6 +28,8 @@ dependencies:
   xml: ^6.2.2
   gpx: ^2.2.1
   map_launcher: ^2.4.0
+  location: ^4.4.0
+  geocoding: ^2.0.5
 
 dev_dependencies:
   flutter_test:

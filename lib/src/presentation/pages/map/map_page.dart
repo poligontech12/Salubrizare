@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
+import 'package:location/location.dart';
 
 import '../../../models/coordinates/index.dart';
 
@@ -41,24 +42,69 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     GeoPoint(latitude: 47.65618, longitude: 26.26129),
   ];
 
-  bool isConstraintRoads = false;
+  // bool isConstraintRoads = false;
+  GeoPoint? _currentLocation;
+
+  bool isCurrentLocation = false;
+  void getCurrentLocation() {
+    final Location location = Location();
+
+    location.getLocation().then((LocationData location) {
+      _currentLocation = GeoPoint(latitude: location.latitude!, longitude: location.longitude!);
+
+      controller = MapController.withPosition(
+        initPosition: GeoPoint(latitude: location.latitude!, longitude: location.longitude!),
+      );
+      controller.addObserver(this);
+      scaffoldKey = GlobalKey<ScaffoldState>();
+      setState(() {
+
+      isCurrentLocation = true;
+      });
+    });
+
+    location.onLocationChanged.listen((LocationData newLocation) {
+      controller.setStaticPosition(
+        <GeoPoint>[GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!)],
+        'currentLocation',
+      );
+      controller.setMarkerOfStaticPoint(
+        id: 'currentLocation',
+        markerIcon: MarkerIcon(
+          iconWidget: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.blue.withOpacity(0.2),
+            ),
+            child: Center(
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.blue.withOpacity(0.7),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      _currentLocation = GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!);
+      // controller.rotateMapCamera(newLocation.heading!);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    controller = MapController.withPosition(
-      initPosition: GeoPoint(
-        latitude: 47.63634,
-        longitude: 26.22315,
-      ),
-    );
-    controller.addObserver(this);
-    scaffoldKey = GlobalKey<ScaffoldState>();
+    getCurrentLocation();
   }
 
   Future<void> mapIsInitialized() async {
     await controller.setZoom(zoomLevel: 15);
-
     final BoundingBox bounds = await controller.bounds;
     if (kDebugMode) {
       print('2: $bounds');
@@ -72,7 +118,7 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     }
 
     await mapIsInitialized();
-    addMultiRoadConfiguration();
+    drawRoad();
   }
 
   @override
@@ -96,35 +142,17 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: ValueListenableBuilder<bool>(
-        valueListenable: showFab,
-        builder: (ctx, isShow, child) {
-          if (!isShow) {
-            return SizedBox.shrink();
-          }
-          return child!;
-        },
-        child: FloatingActionButton(
-          onPressed: () {
-            controller.rotateMapCamera(angleCamera);
-            angleCamera += 20;
-          },
-          child: const Icon(
-            Icons.piano,
-            color: Colors.white,
-          ),
-        ),
-      ),
-      key: scaffoldKey,
+      // key: scaffoldKey,
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: <Widget>[
+          if (isCurrentLocation)
           OSMFlutter(
             controller: controller,
             trackMyPosition: true,
             androidHotReloadSupport: true,
             onMapIsReady: (bool isReady) {
-              if (isReady && isConstraintRoads) {
+              if (isReady) {
                 if (kDebugMode) {
                   print('map is ready');
                 }
@@ -156,14 +184,14 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
               }
             },
           ),
-          if (!isConstraintRoads)
+          if (!isCurrentLocation)
             Center(
               child: Container(
                 width: MediaQuery.of(context).size.width / 1.2,
                 padding: const EdgeInsets.all(20.0),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(30.0),
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.grey.withOpacity(0.5),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -191,28 +219,11 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
         markerIcon: MarkerIcon(
           iconWidget: Stack(
             children: const <Widget>[
-               Icon(
+              Icon(
                 Icons.location_on,
                 size: 50,
                 color: Colors.red,
               ),
-              // Container(
-              //   width: 30,
-              //   height: 30,
-              //   decoration: const BoxDecoration(
-              //     shape: BoxShape.circle,
-              //     color: Colors.green,
-              //   ),
-              //   child: Center(
-              //     child: Text(
-              //       '${i + 1}',
-              //       style: const TextStyle(
-              //         color: Colors.white,
-              //         fontSize: 22,
-              //       ),
-              //     ),
-              //   ),
-              // )
             ],
           ),
         ),
@@ -220,46 +231,27 @@ class _MapPageState extends State<MapPage> with OSMMixinObserver {
     }
   }
 
-  Future<void> addMultiRoadConfiguration() async {
-    await controller.myLocation().then((GeoPoint value) {
-      isConstraintRoads = true;
-      print('Current location: $value');
-      coordinates.insert(0, value);
+  Future<void> drawRoad() async {
+    await controller.myLocation().then((GeoPoint value) async {
+      // isConstraintRoads = true;
+      // coordinates.insert(0, value);
 
-      List<MultiRoadConfiguration> configs = [];
-      for (int i = 0; i < coordinates.length; i++) {
-        if (coordinates.length > i + 1) {
-          configs.add(
-            MultiRoadConfiguration(
-              startPoint: coordinates[i],
-              destinationPoint: coordinates[i + 1],
-              roadOptionConfiguration: const MultiRoadOption(
-                roadColor: Colors.blue,
-              ),
-            ),
-          );
-        } else {
-          drawMultiRoads(configs);
-        }
-      }
+      final RoadInfo roadInfo = await controller.drawRoad(
+        coordinates[0],
+        coordinates[coordinates.length - 1],
+        roadType: RoadType.foot,
+        intersectPoint: coordinates,
+        roadOption: const RoadOption(
+          roadWidth: 10,
+          roadColor: Colors.blue,
+          showMarkerOfPOI: true,
+        ),
+      );
+      await controller.setStaticPosition(coordinates, '0');
+      await controller.setZoom(zoomLevel: 20);
+
+      // print("${roadInfo.distance}km");
+      // print("${roadInfo.duration}sec");
     });
-  }
-
-  Future<void> drawMultiRoads(List<MultiRoadConfiguration> configs) async {
-    final List<RoadInfo> listRoadInfo = await controller
-        .drawMultipleRoad(
-      configs,
-      commonRoadOption: const MultiRoadOption(
-        roadColor: Colors.redAccent,
-      ),
-    )
-        .whenComplete(() {
-      addMarkers();
-      setState(() {});
-    });
-
-    if (kDebugMode) {
-      print(listRoadInfo);
-    }
   }
 }

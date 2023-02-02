@@ -44,6 +44,7 @@ class _AppState extends State<App> with InitMixin<App> {
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
               scrollBehavior: NoThumbScrollBehavior().copyWith(scrollbars: false),
+              // initialRoute: '/location',
               routes: AppRoutes.routes,
             ),
           );
