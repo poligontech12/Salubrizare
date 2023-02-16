@@ -14,8 +14,10 @@ class FlutterOsmWithCompass extends StatefulWidget {
 }
 
 class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMMixinObserver {
-  late MapController controller;
+  MapController controller = MapController();
   late GlobalKey<ScaffoldState> scaffoldKey;
+
+  bool isGoToLocation = false;
 
   Key mapGlobalKey = UniqueKey();
   LocationData? locationData;
@@ -44,86 +46,90 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
     controller.setMarkerOfStaticPoint(
       id: 'currentLocation',
       markerIcon: MarkerIcon(
-        iconWidget: SizedBox(
-          width: 40,
-          height: 60,
-          child: Center(
-            child: Transform.rotate(
-              angle: 0,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                children: <Widget>[
-                  Container(
-                    width: 40,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.only(
-                        bottomRight: Radius.circular(30),
-                        bottomLeft: Radius.circular(30),
-                      ),
-                      color: Colors.blue.withOpacity(0.2),
-                    ),
-                  ),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.9),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 20,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.blue.withOpacity(0.7),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        icon: Icon(
+          Icons.person,
+          color: Colors.transparent,
         ),
+        // iconWidget: SizedBox(
+        //   width: 40,
+        //   height: 60,
+        //   child: Center(
+        //     child: Transform.rotate(
+        //       angle: 0,
+        //       child: Stack(
+        //         alignment: Alignment.bottomCenter,
+        //         children: <Widget>[
+        //           Container(
+        //             width: 40,
+        //             height: 60,
+        //             decoration: BoxDecoration(
+        //               borderRadius: const BorderRadius.only(
+        //                 bottomRight: Radius.circular(30),
+        //                 bottomLeft: Radius.circular(30),
+        //               ),
+        //               color: Colors.blue.withOpacity(0.2),
+        //             ),
+        //           ),
+        //           Container(
+        //             width: 40,
+        //             height: 40,
+        //             decoration: BoxDecoration(
+        //               shape: BoxShape.circle,
+        //               color: Colors.white.withOpacity(0.9),
+        //             ),
+        //             child: Center(
+        //               child: Container(
+        //                 width: 20,
+        //                 height: 20,
+        //                 decoration: BoxDecoration(
+        //                   shape: BoxShape.circle,
+        //                   color: Colors.blue.withOpacity(0.7),
+        //                 ),
+        //               ),
+        //             ),
+        //           ),
+        //         ],
+        //       ),
+        //     ),
+        //   ),
+        // ),
       ),
     );
   }
 
   Future<void> getCurrentLocation() async {
-    location.getLocation().then((LocationData location) {
+    location.getLocation().then((LocationData location) async {
       locationData = location;
-
-      coordinates.insert(0, GeoPoint(latitude: location.latitude!, longitude: location.longitude!));
-
-      controller = MapController.withPosition(
-        initPosition: GeoPoint(latitude: location.latitude!, longitude: location.longitude!),
-      );
+      // controller.setZoom(zoomLevel: 19);
+      // coordinates.insert(0, GeoPoint(latitude: location.latitude!, longitude: location.longitude!));
 
       controller.addObserver(this);
       scaffoldKey = GlobalKey<ScaffoldState>();
       setState(() {
         isCurrentLocation = true;
       });
+
+      await controller.enableTracking();
+      // await controller.currentLocation();
     });
 
-    location.onLocationChanged.listen((LocationData newLocation) {
-      // changeLocationMarker(newLocation);
-      print('Current lat: ${newLocation.latitude}, long: ${newLocation.longitude}');
+    location.onLocationChanged.listen((LocationData newLocation) async {
+      changeLocationMarker(newLocation);
+      locationData = newLocation;
+      // controller.setStaticPosition(
+      //   <GeoPoint>[GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!)],
+      //   'currentLocation',
+      // );
+      // print('Current lat: ${newLocation.latitude}, long: ${newLocation.longitude}');
 
-      controller = MapController.withPosition(
-        initPosition: GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!),
-      );
 
-      // controller.changeLocation(GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!));
-      controller.goToLocation(GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!));
-      listLocationData.add(newLocation);
     });
 
-    FlutterCompass.events!.listen((CompassEvent event) {
-      WidgetsBinding.instance.addPostFrameCallback((Duration timeStamp) {
-        controller.rotateMapCamera(-event.heading! - 20);
+    FlutterCompass.events!.listen((CompassEvent event) async {
+      WidgetsBinding.instance.addPostFrameCallback((Duration timeStamp) async {
+        // await controller.goToLocation(GeoPoint(latitude: locationData!.latitude!, longitude: locationData!.longitude!));
+        await controller.rotateMapCamera(-event.heading!);
+        print(event.heading);
       });
     });
   }
@@ -167,6 +173,9 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // controller.goToLocation(GeoPoint(latitude: 47.6225488555408, longitude: 26.129408422826973));
+          // setState(() {
+          isGoToLocation = true;
+          // });
         },
       ),
       body: Stack(
@@ -177,23 +186,29 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
               trackMyPosition: true,
               showDefaultInfoWindow: true,
               androidHotReloadSupport: true,
-              initZoom: 15,
+              // initZoom: 15,
               minZoomLevel: 10,
               maxZoomLevel: 19,
               userLocationMarker: UserLocationMaker(
-                personMarker: MarkerIcon(iconWidget: markerLiveLocationContainer()),
+                personMarker: MarkerIcon(
+                  assetMarker: AssetMarker(
+                    image: const AssetImage('assets/gpsX20.png'),
+                    scaleAssetImage: 0.2,
+                  ),
+                ),
                 directionArrowMarker: MarkerIcon(
                   assetMarker: AssetMarker(
                     image: const AssetImage(
-                      'assets/taxi.png',
+                      'assets/gpsX20.png',
                     ),
-                    scaleAssetImage: 0.45,
+                    scaleAssetImage: 0.2,
                   ),
                 ),
               ),
-              onLocationChanged: (GeoPoint myLocation) {
+              onLocationChanged: (GeoPoint myLocation) async {
                 if (kDebugMode) {
                   print('3: $myLocation');
+                  controller.goToLocation(GeoPoint(latitude: myLocation.latitude, longitude: myLocation.longitude));
                 }
               },
             ),
