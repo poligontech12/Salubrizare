@@ -275,6 +275,7 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
           showMarkerOfPOI: true,
         ),
       );
+
       await controller.setStaticPosition(coordinates, '0');
       await controller.setZoom(zoomLevel: 20);
     });
