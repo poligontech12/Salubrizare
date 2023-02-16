@@ -10,7 +10,7 @@ Reducer<AppState> reducer = combineReducers(<Reducer<AppState>>[
 
 AppState _reducer(AppState state, dynamic action) {
   if (kDebugMode) {
-    print('action $action');
+    // print('action $action');
   }
   return state.rebuild((AppStateBuilder b) {
     b.coordinates = productsReducer(state.coordinates, action).toBuilder();

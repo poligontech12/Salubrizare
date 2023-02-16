@@ -21,7 +21,10 @@ class NoThumbScrollBehavior extends ScrollBehavior {
   };
 }
 
-void main() => runApp(const App());
+void main() {
+  // WidgetsFlutterBinding.ensureInitialized();
+  runApp(const App());
+}
 
 class App extends StatefulWidget {
   const App({super.key});

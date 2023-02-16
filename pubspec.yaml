@@ -18,6 +18,11 @@ dependencies:
   flutter_hooks: ^0.18.5+1
   osm_flutter_hooks: ^1.0.0
   flutter_osm_plugin: ^0.42.0
+  flutter_map: ^0.13.1
+
+  flutter_osrm:
+    git:
+      url: https://github.com/JaffaKetchup/flutter_osrm.git
 
   # dart
   redux: ^5.0.0
@@ -30,6 +35,8 @@ dependencies:
   map_launcher: ^2.4.0
   location: ^4.4.0
   geocoding: ^2.0.5
+  flutter_compass: ^0.7.0
+  flutter_nhan_compass: ^1.0.0
 
 dev_dependencies:
   flutter_test:
@@ -42,5 +49,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - asset/
+    - assets/
     - lib/coordinates.gpx
