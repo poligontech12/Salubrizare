@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,13 +15,9 @@ class FlutterOsmWithCompass extends StatefulWidget {
 }
 
 class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMMixinObserver {
-  MapController controller = MapController();
-  late GlobalKey<ScaffoldState> scaffoldKey;
-
-  bool isGoToLocation = false;
-
-  Key mapGlobalKey = UniqueKey();
-  LocationData? locationData;
+  late MapController controller;
+  Location location = Location();
+  bool _mapIsReady = false;
   Timer? timer;
 
   List<GeoPoint> coordinates = <GeoPoint>[
@@ -31,11 +28,6 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
     GeoPoint(latitude: 47.64488, longitude: 26.26292),
     GeoPoint(latitude: 47.65618, longitude: 26.26129),
   ];
-
-  List<LocationData> listLocationData = <LocationData>[];
-
-  final Location location = Location();
-  bool isCurrentLocation = false;
 
   void changeLocationMarker(LocationData newLocation) {
     controller.setStaticPosition(
@@ -50,86 +42,24 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
           Icons.person,
           color: Colors.transparent,
         ),
-        // iconWidget: SizedBox(
-        //   width: 40,
-        //   height: 60,
-        //   child: Center(
-        //     child: Transform.rotate(
-        //       angle: 0,
-        //       child: Stack(
-        //         alignment: Alignment.bottomCenter,
-        //         children: <Widget>[
-        //           Container(
-        //             width: 40,
-        //             height: 60,
-        //             decoration: BoxDecoration(
-        //               borderRadius: const BorderRadius.only(
-        //                 bottomRight: Radius.circular(30),
-        //                 bottomLeft: Radius.circular(30),
-        //               ),
-        //               color: Colors.blue.withOpacity(0.2),
-        //             ),
-        //           ),
-        //           Container(
-        //             width: 40,
-        //             height: 40,
-        //             decoration: BoxDecoration(
-        //               shape: BoxShape.circle,
-        //               color: Colors.white.withOpacity(0.9),
-        //             ),
-        //             child: Center(
-        //               child: Container(
-        //                 width: 20,
-        //                 height: 20,
-        //                 decoration: BoxDecoration(
-        //                   shape: BoxShape.circle,
-        //                   color: Colors.blue.withOpacity(0.7),
-        //                 ),
-        //               ),
-        //             ),
-        //           ),
-        //         ],
-        //       ),
-        //     ),
-        //   ),
-        // ),
       ),
     );
   }
 
   Future<void> getCurrentLocation() async {
     location.getLocation().then((LocationData location) async {
-      locationData = location;
-      // controller.setZoom(zoomLevel: 19);
-      // coordinates.insert(0, GeoPoint(latitude: location.latitude!, longitude: location.longitude!));
-
       controller.addObserver(this);
-      scaffoldKey = GlobalKey<ScaffoldState>();
-      setState(() {
-        isCurrentLocation = true;
-      });
-
-      await controller.enableTracking();
-      // await controller.currentLocation();
+      coordinates.insert(0, GeoPoint(latitude: location.latitude!, longitude: location.longitude!));
+      await drawRoad();
+      // await controller.enableTracking();
     });
 
-    location.onLocationChanged.listen((LocationData newLocation) async {
-      changeLocationMarker(newLocation);
-      locationData = newLocation;
-      // controller.setStaticPosition(
-      //   <GeoPoint>[GeoPoint(latitude: newLocation.latitude!, longitude: newLocation.longitude!)],
-      //   'currentLocation',
-      // );
-      // print('Current lat: ${newLocation.latitude}, long: ${newLocation.longitude}');
-
-
-    });
+    location.onLocationChanged.listen((LocationData newLocation) async => changeLocationMarker(newLocation));
 
     FlutterCompass.events!.listen((CompassEvent event) async {
       WidgetsBinding.instance.addPostFrameCallback((Duration timeStamp) async {
-        // await controller.goToLocation(GeoPoint(latitude: locationData!.latitude!, longitude: locationData!.longitude!));
         await controller.rotateMapCamera(-event.heading!);
-        print(event.heading);
+        log('${event.heading}');
       });
     });
   }
@@ -137,15 +67,14 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
   @override
   void initState() {
     super.initState();
-    getCurrentLocation();
+    controller = MapController();
+    controller.addObserver(this);
+    _mapIsReady = true;
   }
 
   Future<void> mapIsInitialized() async {
     await controller.setZoom(zoomLevel: 15);
-    final BoundingBox bounds = await controller.bounds;
-    if (kDebugMode) {
-      print('2: $bounds');
-    }
+    await getCurrentLocation();
   }
 
   @override
@@ -155,7 +84,6 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
     }
 
     await mapIsInitialized();
-    drawRoad();
   }
 
   @override
@@ -166,21 +94,31 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
     super.dispose();
   }
 
+  Future<void> drawRoad() async {
+    await controller.myLocation().then((GeoPoint value) async {
+      await controller.drawRoad(
+        coordinates[0],
+        coordinates[coordinates.length - 1],
+        roadType: RoadType.car,
+        intersectPoint: coordinates,
+        roadOption: const RoadOption(
+          roadWidth: 10,
+          roadColor: Colors.blue,
+          showMarkerOfPOI: true,
+        ),
+      );
+
+      await controller.setStaticPosition(coordinates, '0');
+      // await controller.setZoom(zoomLevel: 20);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // controller.goToLocation(GeoPoint(latitude: 47.6225488555408, longitude: 26.129408422826973));
-          // setState(() {
-          isGoToLocation = true;
-          // });
-        },
-      ),
       body: Stack(
         children: <Widget>[
-          if (isCurrentLocation)
+          if (_mapIsReady)
             OSMFlutter(
               controller: controller,
               trackMyPosition: true,
@@ -212,7 +150,7 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
                 }
               },
             ),
-          if (!isCurrentLocation)
+          if (!_mapIsReady)
             Center(
               child: Container(
                 width: MediaQuery.of(context).size.width / 1.2,
@@ -238,61 +176,5 @@ class _FlutterOsmWithCompassState extends State<FlutterOsmWithCompass> with OSMM
         ],
       ),
     );
-  }
-
-  Widget markerLiveLocationContainer() {
-    return Stack(
-      alignment: Alignment.bottomCenter,
-      children: <Widget>[
-        Container(
-          width: 40,
-          height: 60,
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.only(
-              bottomRight: Radius.circular(30),
-              bottomLeft: Radius.circular(30),
-            ),
-            color: Colors.blue.withOpacity(0.2),
-          ),
-        ),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withOpacity(0.9),
-          ),
-          child: Center(
-            child: Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blue.withOpacity(0.7),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> drawRoad() async {
-    await controller.myLocation().then((GeoPoint value) async {
-      final RoadInfo roadInfo = await controller.drawRoad(
-        coordinates[0],
-        coordinates[coordinates.length - 1],
-        roadType: RoadType.car,
-        intersectPoint: coordinates,
-        roadOption: const RoadOption(
-          roadWidth: 10,
-          roadColor: Colors.blue,
-          showMarkerOfPOI: true,
-        ),
-      );
-
-      await controller.setStaticPosition(coordinates, '0');
-      await controller.setZoom(zoomLevel: 20);
-    });
   }
 }
